@@ -4,11 +4,13 @@ import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
 import jobDemoRoutes from './routes/jobDemo.routes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 const ML_CORE_URL = process.env.ML_CORE_URL || 'http://localhost:8000';
 
+// Middlewares
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
@@ -36,6 +38,8 @@ app.post('/api/upload', upload.single('resume'), async (req, res) => {
   }
 });
 
+// API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/jobdemo', jobDemoRoutes);
 
 export default app;

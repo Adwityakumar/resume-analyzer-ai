@@ -1,30 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { analyzeJobDemo } from '../services/api.js';
 
 const roles = [
-  {
-    value: 'full_stack_developer',
-    label: 'Full Stack Developer',
-  },
-  {
-    value: 'frontend_developer',
-    label: 'Frontend Developer',
-  },
-  {
-    value: 'backend_developer',
-    label: 'Backend Developer',
-  },
-  {
-    value: 'data_analyst',
-    label: 'Data Analyst',
-  },
-  {
-    value: 'ui_ux_designer',
-    label: 'UI/UX Designer',
-  },
+  { value: 'full_stack_developer', label: 'Full Stack Developer' },
+  { value: 'frontend_developer', label: 'Frontend Developer' },
+  { value: 'backend_developer', label: 'Backend Developer' },
+  { value: 'data_analyst', label: 'Data Analyst' },
+  { value: 'ui_ux_designer', label: 'UI/UX Designer' },
 ];
 
 function JobDemo() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
   const [resumeText, setResumeText] = useState('');
   const [selectedRole, setSelectedRole] = useState('full_stack_developer');
   const [jobDescription, setJobDescription] = useState('');
@@ -33,6 +22,24 @@ function JobDemo() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // --- SECURITY CHECK ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+
+    if (!token || !userData) {
+      navigate('/login'); // Kick to login if not authenticated
+    } else {
+      setUser(JSON.parse(userData));
+    }
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
 
   const canAnalyze = useMemo(() => {
     return Boolean((resumeText.trim() || resumeFile) && selectedRole && !loading);
@@ -88,8 +95,29 @@ function JobDemo() {
     }
   };
 
+  // Prevent flash of content before user data loads
+  if (!user) return null;
+
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+      
+      {/* AUTHENTICATION HEADER */}
+      <div className="mx-auto max-w-6xl mb-8 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Welcome, {user.name}</h2>
+          <p className="text-sm text-slate-500">
+            {user.email} <span className="mx-2">•</span> 
+            <span className="capitalize font-medium text-blue-600">{user.role} Account</span>
+          </p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="rounded-md bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+        >
+          Log Out
+        </button>
+      </div>
+
       <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6">
