@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { analyzeJobDemo } from '../services/api.js';
 
 const roles = [
@@ -12,7 +13,7 @@ const roles = [
 
 function JobDemo() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user, logout } = useAuth();
 
   const [resumeText, setResumeText] = useState('');
   const [selectedRole, setSelectedRole] = useState('full_stack_developer');
@@ -25,19 +26,13 @@ function JobDemo() {
 
   // --- SECURITY CHECK ---
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-
-    if (!token || !userData) {
-      navigate('/login'); // Kick to login if not authenticated
-    } else {
-      setUser(JSON.parse(userData));
+    if (!user) {
+      navigate('/login');
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logout();
     navigate('/login');
   };
 
@@ -99,26 +94,46 @@ function JobDemo() {
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
-      
-      {/* AUTHENTICATION HEADER */}
-      <div className="mx-auto max-w-6xl mb-8 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Welcome, {user.name}</h2>
-          <p className="text-sm text-slate-500">
-            {user.email} <span className="mx-2">•</span> 
-            <span className="capitalize font-medium text-blue-600">{user.role} Account</span>
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="rounded-md bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-        >
-          Log Out
-        </button>
-      </div>
+    <main className="min-h-screen bg-slate-50 text-slate-950">
 
-      <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      {/* ── Sticky Navigation ── */}
+      <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+              {user?.name?.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 hidden sm:block">
+              <p className="font-bold text-slate-800 leading-tight truncate">{user?.name}</p>
+              <p className="text-xs text-indigo-600 font-medium">Job Seeker</p>
+            </div>
+          </div>
+
+          <nav className="flex items-center gap-1">
+            <button
+              onClick={() => navigate('/jobs')}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 transition"
+            >
+              Job Board
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-3 py-2 rounded-lg text-sm font-semibold text-indigo-700 bg-indigo-50 transition"
+            >
+              Resume Analyzer
+            </button>
+          </nav>
+
+          <button
+            onClick={handleLogout}
+            className="shrink-0 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition"
+          >
+            Log Out
+          </button>
+        </div>
+      </header>
+
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Job Demo</p>
@@ -128,14 +143,6 @@ function JobDemo() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={!canAnalyze}
-            className="mb-5 w-full rounded-md bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {loading ? 'Analyzing...' : 'Analyze Resume'}
-          </button>
 
           <div className="space-y-5">
             <label className="block">

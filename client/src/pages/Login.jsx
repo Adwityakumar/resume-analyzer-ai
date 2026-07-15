@@ -1,34 +1,30 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { loginUser } from '../services/api.js';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data));
-        navigate('/dashboard');
-      } else {
-        setError(data.message || 'Login failed');
-      }
+      const data = await loginUser(email, password);
+      login(data);
+      // Role-based redirect: recruiter → recruiter dashboard, user → job board
+      navigate(data.role === 'recruiter' ? '/recruiter-dashboard' : '/jobs');
     } catch (err) {
-      setError('Could not connect to the server. Is it running?');
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -36,13 +32,15 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg border border-gray-100">
         <div>
-          <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            Welcome back
-          </h2>
+          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <span className="text-white text-2xl">💼</span>
+          </div>
+          <h2 className="text-center text-3xl font-extrabold text-gray-900">Welcome back</h2>
+          <p className="text-center text-sm text-gray-500 mt-1">Sign in to continue</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm text-center">
+          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm text-center border border-red-200">
             {error}
           </div>
         )}
@@ -54,7 +52,7 @@ const Login = () => {
               <input
                 type="email"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-1 text-sm"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -64,7 +62,7 @@ const Login = () => {
               <input
                 type="password"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 mt-1 text-sm"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -73,15 +71,21 @@ const Login = () => {
 
           <button
             type="submit"
-            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            disabled={loading}
+            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Signing in…
+              </span>
+            ) : 'Sign in'}
           </button>
         </form>
-        
-        <p className="text-center text-sm text-gray-600 mt-4">
+
+        <p className="text-center text-sm text-gray-600">
           Don't have an account?{' '}
-          <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+          <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
             Sign up here
           </Link>
         </p>

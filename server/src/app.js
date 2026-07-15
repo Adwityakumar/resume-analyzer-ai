@@ -5,6 +5,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import jobDemoRoutes from './routes/jobDemo.routes.js';
 import authRoutes from './routes/authRoutes.js';
+import jobRoutes from './routes/job.routes.js';
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -41,5 +42,6 @@ app.post('/api/upload', upload.single('resume'), async (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/jobdemo', jobDemoRoutes);
+app.use('/api/jobs', jobRoutes);
 
 export default app;
