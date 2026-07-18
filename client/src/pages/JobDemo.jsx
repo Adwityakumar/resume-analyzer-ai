@@ -237,12 +237,43 @@ function JobDemo() {
 
               <ResultList title="Matched Skills" items={result.matchedSkills} tone="green" />
               <ResultList title="Missing Skills" items={result.missingSkills} tone="red" />
+              <ResultList title="Extracted Skills" items={result.extractedSkills} tone="blue" />
               <ResultList title="Suggestions" items={result.suggestions} tone="blue" />
+              <ScoreBreakdown breakdown={result.scoreBreakdown} />
             </div>
           )}
         </aside>
       </section>
     </main>
+  );
+}
+
+function ScoreBreakdown({ breakdown }) {
+  if (!breakdown || !Object.keys(breakdown).length) {
+    return null;
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-slate-800">Score Breakdown</h3>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <BreakdownItem label="Required" value={breakdown.requiredSkillsScore} suffix="/80" />
+        <BreakdownItem label="Good to have" value={breakdown.goodToHaveScore} suffix="/20" />
+        <BreakdownItem label="Extracted skills" value={breakdown.extractedSkillCount} />
+      </div>
+    </section>
+  );
+}
+
+function BreakdownItem({ label, value, suffix = '' }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-bold text-slate-900">
+        {Number(value || 0).toFixed(0)}
+        {suffix}
+      </p>
+    </div>
   );
 }
 

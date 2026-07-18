@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getMyJobs, createJob, deleteJob } from '../services/api.js';
+import { getMyJobs, createJob, updateJob, deleteJob } from '../services/api.js';
 
 // ─── Skill Input Component ─────────────────────────────────────────────────
 function SkillInput({ label, skills, onChange }) {
@@ -179,6 +179,8 @@ export default function RecruiterDashboard() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const [error, setError] = useState('');
 
   // Redirect non-recruiters
@@ -213,14 +215,35 @@ export default function RecruiterDashboard() {
     setJobs((prev) => [{ ...newJob, applicationCount: 0 }, ...prev]);
   };
 
+  const handleTogglePause = async (job) => {
+    const nextActiveState = job.isActive === false;
+    setUpdatingId(job._id);
+    setOpenMenuId(null);
+    try {
+      const updatedJob = await updateJob(job._id, { isActive: nextActiveState });
+      setJobs((prev) =>
+        prev.map((item) =>
+          item._id === job._id
+            ? { ...item, ...updatedJob, applicationCount: item.applicationCount }
+            : item
+        )
+      );
+    } catch (err) {
+      alert('Failed to update job status. Please try again.');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleDelete = async (jobId) => {
-    if (!window.confirm('Deactivate this job posting? It will no longer appear on the job board.')) return;
+    if (!window.confirm('Delete this job posting? It will no longer appear in your recruiter dashboard or on the job board.')) return;
     setDeletingId(jobId);
+    setOpenMenuId(null);
     try {
       await deleteJob(jobId);
       setJobs((prev) => prev.filter((j) => j._id !== jobId));
     } catch (err) {
-      alert('Failed to deactivate job. Please try again.');
+      alert('Failed to delete job. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -275,7 +298,7 @@ export default function RecruiterDashboard() {
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Active Jobs</p>
             <p className="text-4xl font-bold text-green-600 mt-1">
-              {jobs.filter((j) => j.isActive).length}
+              {jobs.filter((j) => j.isActive !== false).length}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
@@ -330,24 +353,64 @@ export default function RecruiterDashboard() {
             {jobs.map((job) => (
               <div
                 key={job._id}
-                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition overflow-hidden"
+                className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition"
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-lg font-bold text-slate-800 truncate">{job.title}</h2>
-                        {!job.isActive && (
+                        {job.isActive === false && (
                           <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-500 font-medium border border-slate-200">
-                            Deactivated
+                            Paused
                           </span>
                         )}
                       </div>
                       <p className="text-sm text-slate-500 mt-1 line-clamp-2">{job.description}</p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-2xl font-bold text-slate-800">{job.applicationCount || 0}</p>
-                      <p className="text-xs text-slate-400">applicant{job.applicationCount !== 1 ? 's' : ''}</p>
+                    <div className="flex items-start gap-3 shrink-0">
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-slate-800">{job.applicationCount || 0}</p>
+                        <p className="text-xs text-slate-400">applicant{job.applicationCount !== 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId((current) => (current === job._id ? null : job._id))}
+                          className="h-8 w-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+                          aria-label="Job actions"
+                        >
+                          ...
+                        </button>
+
+                        {openMenuId === job._id && (
+                          <div className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/recruiter/jobs/${job._id}/applications`)}
+                              className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                            >
+                              View Applications
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePause(job)}
+                              disabled={updatingId === job._id}
+                              className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              {job.isActive === false ? 'Resume Applications' : 'Pause Applications'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(job._id)}
+                              disabled={deletingId === job._id}
+                              className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              {deletingId === job._id ? 'Deleting...' : 'Delete Job'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -374,13 +437,6 @@ export default function RecruiterDashboard() {
                       className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition"
                     >
                       View Applications ({job.applicationCount || 0})
-                    </button>
-                    <button
-                      onClick={() => handleDelete(job._id)}
-                      disabled={deletingId === job._id || !job.isActive}
-                      className="px-4 py-2 rounded-lg border border-red-200 text-red-500 text-sm font-semibold hover:bg-red-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {deletingId === job._id ? 'Removing…' : 'Deactivate'}
                     </button>
                   </div>
                 </div>

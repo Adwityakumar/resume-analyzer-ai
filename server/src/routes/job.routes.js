@@ -7,6 +7,7 @@ import {
   updateJob,
   deleteJob,
   getAllJobs,
+  analyzeJobForApplication,
   applyForJob,
   getJobApplications,
   updateApplicationStatus,
@@ -27,6 +28,7 @@ router.patch('/:jobId/applications/:appId', protect, isRecruiter, updateApplicat
 // ─── User / Job Seeker routes ─────────────────────────────────────────────
 router.get('/my-applications', protect, getMyApplications);  // MUST be before /:id
 router.get('/', protect, getAllJobs);
+router.post('/:id/analyze', protect, upload.single('resumeFile'), analyzeJobForApplication);
 router.post('/:id/apply', protect, upload.single('resumeFile'), applyForJob);
 
 export default router;

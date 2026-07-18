@@ -17,6 +17,7 @@ const applicationSchema = new mongoose.Schema({
 
   // Resume text stored so recruiter can review & re-analysis is possible
   resumeText: { type: String, default: '' },
+  resumeFileName: { type: String, default: '' },
 
   // ML Analysis cached at the time of application
   mlScore: { type: Number, default: 0 },

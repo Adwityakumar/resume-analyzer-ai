@@ -13,6 +13,7 @@ const jobSchema = new mongoose.Schema(
     },
     recruiterName: { type: String },
     isActive: { type: Boolean, default: true },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true } // adds createdAt + updatedAt automatically
 );

@@ -2,6 +2,29 @@ import Job from '../models/Job.js';
 import Application from '../models/Application.js';
 import { analyzeJobMatch } from '../services/mlCore.service.js';
 
+const buildJobMatchPayload = (job, req) => ({
+  resumeText: req.body.resumeText || '',
+  resumeFile: req.file || null,
+  role: job.title,
+  jobDescription: job.description,
+  roleKeypoints: {
+    title: job.title,
+    requiredSkills: job.requiredSkills,
+    goodToHave: job.goodToHave,
+  },
+});
+
+const buildJobMatchResponse = (mlResult, message) => ({
+  message,
+  score: mlResult.score,
+  summary: mlResult.summary,
+  matchedSkills: mlResult.matchedSkills,
+  missingSkills: mlResult.missingSkills,
+  suggestions: mlResult.suggestions,
+  role: mlResult.role,
+  extractedResumeText: mlResult.extractedResumeText || '',
+});
+
 // ─── RECRUITER: Create a new job posting ───────────────────────────────────
 export const createJob = async (req, res) => {
   try {
@@ -18,6 +41,8 @@ export const createJob = async (req, res) => {
       goodToHave: goodToHave || [],
       recruiterId: req.user._id,
       recruiterName: req.user.name,
+      isActive: true,
+      isDeleted: false,
     });
 
     return res.status(201).json(job);
@@ -30,7 +55,7 @@ export const createJob = async (req, res) => {
 // ─── RECRUITER: Get all jobs posted by this recruiter ──────────────────────
 export const getMyJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ recruiterId: req.user._id }).sort({ createdAt: -1 });
+    const jobs = await Job.find({ recruiterId: req.user._id, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     // For each job, attach the application count
     const jobsWithCount = await Promise.all(
@@ -65,7 +90,7 @@ export const updateJob = async (req, res) => {
     if (description !== undefined) job.description = description;
     if (requiredSkills !== undefined) job.requiredSkills = requiredSkills;
     if (goodToHave !== undefined) job.goodToHave = goodToHave;
-    if (isActive !== undefined) job.isActive = isActive;
+    if (isActive !== undefined) job.isActive = Boolean(isActive);
 
     await job.save();
     return res.status(200).json(job);
@@ -88,11 +113,12 @@ export const deleteJob = async (req, res) => {
       return res.status(403).json({ message: 'You can only delete your own job postings.' });
     }
 
-    // Soft delete: mark as inactive instead of destroying the record
+    // Soft delete: hide from recruiter and applicant lists without removing related applications.
     job.isActive = false;
+    job.isDeleted = true;
     await job.save();
 
-    return res.status(200).json({ message: 'Job deactivated successfully.' });
+    return res.status(200).json({ message: 'Job deleted successfully.' });
   } catch (error) {
     console.error('deleteJob error:', error.message);
     return res.status(500).json({ message: 'Failed to delete job.', error: error.message });
@@ -103,7 +129,7 @@ export const deleteJob = async (req, res) => {
 // Also attaches hasApplied: true/false for the currently logged-in user
 export const getAllJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ isActive: true }).sort({ createdAt: -1 });
+    const jobs = await Job.find({ isActive: { $ne: false }, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     // Bulk-fetch the user's applications so we can flag hasApplied without N queries
     const jobIds = jobs.map((j) => j._id);
@@ -127,11 +153,49 @@ export const getAllJobs = async (req, res) => {
 };
 
 // ─── USER: Apply for a job ──────────────────────────────────────────────────
+export const analyzeJobForApplication = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job || job.isDeleted || job.isActive === false) {
+      return res.status(404).json({ message: 'Job not found or no longer active.' });
+    }
+
+    if (!req.body.resumeText?.trim() && !req.file) {
+      return res.status(400).json({ message: 'Please upload your resume or paste your resume text.' });
+    }
+
+    const existingApplication = await Application.findOne({
+      jobId: job._id,
+      applicantId: req.user._id,
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({ message: 'You have already applied for this job.' });
+    }
+
+    let mlResult;
+    try {
+      mlResult = await analyzeJobMatch(buildJobMatchPayload(job, req));
+    } catch (mlError) {
+      console.error('ML analysis failed during resume preview:', mlError.message);
+      return res.status(502).json({ message: 'ML analysis service unavailable. Please try again.' });
+    }
+
+    return res.status(200).json(
+      buildJobMatchResponse(mlResult, 'Resume analyzed. Review the score before submitting your application.')
+    );
+  } catch (error) {
+    console.error('analyzeJobForApplication error:', error.message);
+    return res.status(500).json({ message: 'Failed to analyze resume.', error: error.message });
+  }
+};
+
 export const applyForJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id);
 
-    if (!job || !job.isActive) {
+    if (!job || job.isDeleted || job.isActive === false) {
       return res.status(404).json({ message: 'Job not found or no longer active.' });
     }
 
@@ -145,22 +209,13 @@ export const applyForJob = async (req, res) => {
       return res.status(400).json({ message: 'You have already applied for this job.' });
     }
 
-    // Run the ML analysis using the existing mlCore.service.js function
-    const mlPayload = {
-      resumeText: req.body.resumeText || '',
-      resumeFile: req.file || null,
-      role: job.title, // pass job title as context
-      jobDescription: job.description,
-      roleKeypoints: {
-        title: job.title,
-        requiredSkills: job.requiredSkills,
-        goodToHave: job.goodToHave,
-      },
-    };
+    if (!req.body.resumeText?.trim() && !req.file) {
+      return res.status(400).json({ message: 'Please upload your resume or paste your resume text.' });
+    }
 
     let mlResult;
     try {
-      mlResult = await analyzeJobMatch(mlPayload);
+      mlResult = await analyzeJobMatch(buildJobMatchPayload(job, req));
     } catch (mlError) {
       console.error('ML analysis failed during application:', mlError.message);
       return res.status(502).json({ message: 'ML analysis service unavailable. Please try again.' });
@@ -172,7 +227,8 @@ export const applyForJob = async (req, res) => {
       applicantId: req.user._id,
       applicantName: req.user.name,
       applicantEmail: req.user.email,
-      resumeText: req.body.resumeText || '',
+      resumeText: req.body.resumeText || mlResult.extractedResumeText || '',
+      resumeFileName: req.file?.originalname || '',
       mlScore: mlResult.score,
       mlAnalysis: {
         role: mlResult.role,
@@ -184,13 +240,7 @@ export const applyForJob = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: 'Application submitted successfully!',
-      score: mlResult.score,
-      summary: mlResult.summary,
-      matchedSkills: mlResult.matchedSkills,
-      missingSkills: mlResult.missingSkills,
-      suggestions: mlResult.suggestions,
-      role: mlResult.role,
+      ...buildJobMatchResponse(mlResult, 'Application submitted successfully!'),
       applicationId: application._id,
     });
   } catch (error) {

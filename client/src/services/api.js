@@ -80,6 +80,19 @@ export const getAllJobs = async () => {
   return response.data;
 };
 
+export const analyzeJobApplication = async (jobId, payload) => {
+  if (payload.resumeFile) {
+    const formData = new FormData();
+    formData.append('resumeFile', payload.resumeFile);
+    formData.append('resumeText', payload.resumeText || '');
+    const response = await api.post(`/jobs/${jobId}/analyze`, formData);
+    return response.data;
+  }
+
+  const response = await api.post(`/jobs/${jobId}/analyze`, payload);
+  return response.data;
+};
+
 export const applyForJob = async (jobId, payload) => {
   if (payload.resumeFile) {
     const formData = new FormData();

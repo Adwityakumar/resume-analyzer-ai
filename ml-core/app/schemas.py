@@ -21,3 +21,7 @@ class JobMatchResponse(BaseModel):
     missingSkills: list[str]
     suggestions: list[str]
     summary: str
+    extractedResumeText: str = ''
+    extractedSkills: list[str] = Field(default_factory=list)
+    semanticMatches: list[dict] = Field(default_factory=list)
+    scoreBreakdown: dict[str, float | str] = Field(default_factory=dict)

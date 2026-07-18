@@ -68,6 +68,38 @@ function ChipList({ title, items = [], tone }) {
   );
 }
 
+function SubmittedResume({ application }) {
+  const resumeText = application.resumeText?.trim();
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Submitted Resume</p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">{application.applicantName}</p>
+          <p className="text-xs text-slate-500">{application.applicantEmail}</p>
+        </div>
+
+        {application.resumeFileName && (
+          <span className="rounded-md border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+            {application.resumeFileName}
+          </span>
+        )}
+      </div>
+
+      {resumeText ? (
+        <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
+          {resumeText}
+        </pre>
+      ) : (
+        <p className="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-500">
+          Resume text was not stored for this application.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Applicant Row Card ──────────────────────────────────────────────────
 function ApplicantCard({ application, rank, onStatusChange }) {
   const [expanded, setExpanded] = useState(false);
@@ -141,6 +173,8 @@ function ApplicantCard({ application, rank, onStatusChange }) {
       {/* ── Expanded Analysis Panel ── */}
       {expanded && (
         <div className="border-t border-slate-100 bg-slate-50 px-5 py-5 space-y-4">
+          <SubmittedResume application={application} />
+
           {/* Summary */}
           <div className="bg-slate-900 rounded-lg px-4 py-3 text-white">
             <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">AI Summary</p>

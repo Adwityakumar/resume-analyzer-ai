@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getAllJobs, applyForJob } from '../services/api.js';
+import { getAllJobs, analyzeJobApplication, applyForJob } from '../services/api.js';
 
 // ─── Score display after applying ────────────────────────────────────────────
 function ScoreRing({ score }) {
@@ -51,21 +51,26 @@ function ApplyModal({ job, onClose, onApplied }) {
   const [resumeFile, setResumeFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState(null);  // ML result after applying
+  const [result, setResult] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setResumeFile(file);
     setFileName(file.name);
+    setResult(null);
+    setSubmitted(false);
+    setError('');
     // For non-PDF files, pre-read text
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       file.text().then(setResumeText).catch(() => {});
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleAnalyze = async (e) => {
     e.preventDefault();
     if (!resumeText.trim() && !resumeFile) {
       setError('Please upload your resume or paste your resume text.');
@@ -74,14 +79,40 @@ function ApplyModal({ job, onClose, onApplied }) {
     setLoading(true);
     setError('');
     try {
-      const data = await applyForJob(job._id, { resumeText, resumeFile });
+      const data = await analyzeJobApplication(job._id, { resumeText, resumeFile });
       setResult(data);
-      onApplied(job._id); // mark as applied in parent state
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit application.');
+      setError(err.response?.data?.message || 'Failed to analyze resume.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (!resumeText.trim() && !resumeFile) {
+      setError('Please upload your resume or paste your resume text.');
+      setResult(null);
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const data = await applyForJob(job._id, { resumeText, resumeFile });
+      setResult(data);
+      setSubmitted(true);
+      onApplied(job._id);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit application.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResumeTextChange = (value) => {
+    setResumeText(value);
+    setResult(null);
+    setSubmitted(false);
+    setError('');
   };
 
   return (
@@ -99,9 +130,19 @@ function ApplyModal({ job, onClose, onApplied }) {
         {/* Result Panel — shown after successful apply */}
         {result ? (
           <div className="p-6 space-y-5">
+            {error && (
+              <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-200">{error}</div>
+            )}
+
             <div className="text-center">
-              <p className="text-sm font-semibold text-green-600 mb-1">✅ Application Submitted!</p>
-              <p className="text-xs text-slate-500 mb-4">Here's how your resume matches this role:</p>
+              <p className={`text-sm font-semibold mb-1 ${submitted ? 'text-green-600' : 'text-indigo-600'}`}>
+                {submitted ? 'Application Submitted' : 'Resume Analysis Complete'}
+              </p>
+              <p className="text-xs text-slate-500 mb-4">
+                {submitted
+                  ? 'Your application has been saved for the recruiter.'
+                  : 'Review your match score before submitting this application.'}
+              </p>
               <ScoreRing score={result.score} />
               <p className="text-lg font-bold text-slate-800 mt-3">{result.score}% Match</p>
             </div>
@@ -118,7 +159,7 @@ function ApplyModal({ job, onClose, onApplied }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {result.matchedSkills?.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Matched Skills ✅</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Matched Skills</p>
                   <div className="flex flex-wrap gap-1.5">
                     {result.matchedSkills.map(s => <SkillChip key={s} skill={s} tone="green" />)}
                   </div>
@@ -126,7 +167,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               )}
               {result.missingSkills?.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Missing Skills ⚠️</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Missing Skills</p>
                   <div className="flex flex-wrap gap-1.5">
                     {result.missingSkills.map(s => <SkillChip key={s} skill={s} tone="red" />)}
                   </div>
@@ -141,7 +182,7 @@ function ApplyModal({ job, onClose, onApplied }) {
                 <ul className="space-y-1.5">
                   {result.suggestions.map((s, i) => (
                     <li key={i} className="flex gap-2 text-sm text-slate-600">
-                      <span className="text-blue-500 shrink-0 mt-0.5">→</span>
+                      <span className="text-blue-500 shrink-0 mt-0.5">-</span>
                       <span>{s}</span>
                     </li>
                   ))}
@@ -149,15 +190,41 @@ function ApplyModal({ job, onClose, onApplied }) {
               </div>
             )}
 
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition"
-            >
-              Done
-            </button>
+            {submitted ? (
+              <button
+                onClick={onClose}
+                className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition"
+              >
+                Done
+              </button>
+            ) : (
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setResult(null)}
+                  disabled={submitting}
+                  className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-50"
+                >
+                  Edit Resume
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={submitting}
+                  className="flex-1 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Submitting...
+                    </span>
+                  ) : 'Submit Application'}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleAnalyze} className="p-6 space-y-5">
             {error && (
               <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-200">{error}</div>
             )}
@@ -184,7 +251,7 @@ function ApplyModal({ job, onClose, onApplied }) {
                 onChange={handleFileChange}
                 className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
               />
-              {fileName && <p className="mt-1 text-xs text-slate-500">📎 {fileName}</p>}
+              {fileName && <p className="mt-1 text-xs text-slate-500">Selected file: {fileName}</p>}
             </div>
 
             <div>
@@ -193,7 +260,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               </label>
               <textarea
                 value={resumeText}
-                onChange={(e) => setResumeText(e.target.value)}
+                onChange={(e) => handleResumeTextChange(e.target.value)}
                 rows={7}
                 placeholder="Paste the full text of your resume here..."
                 className="w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
@@ -216,14 +283,14 @@ function ApplyModal({ job, onClose, onApplied }) {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Analyzing & Submitting…
+                    Analyzing...
                   </span>
-                ) : 'Submit Application'}
+                ) : 'Analyze Resume'}
               </button>
             </div>
 
             <p className="text-xs text-slate-400 text-center">
-              Our AI will analyze your resume against this job description and provide instant feedback.
+              Your resume will be analyzed first. You can submit the application after reviewing the score.
             </p>
           </form>
         )}
