@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { analyzeJobDemo } from '../services/api.js';
+import { analyzeJobDemo, deleteMyResume } from '../services/api.js';
+import SavedResumePicker from '../components/SavedResumePicker.jsx';
 
 const roles = [
   { value: 'full_stack_developer', label: 'Full Stack Developer' },
@@ -20,6 +21,8 @@ function JobDemo() {
   const [jobDescription, setJobDescription] = useState('');
   const [resumeFile, setResumeFile] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [resumeFileUrl, setResumeFileUrl] = useState('');
+  const [activeTab, setActiveTab] = useState('upload');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,8 +40,8 @@ function JobDemo() {
   };
 
   const canAnalyze = useMemo(() => {
-    return Boolean((resumeText.trim() || resumeFile) && selectedRole && !loading);
-  }, [loading, resumeFile, resumeText, selectedRole]);
+    return Boolean((resumeText.trim() || resumeFile || resumeFileUrl) && selectedRole && !loading);
+  }, [loading, resumeFile, resumeFileUrl, resumeText, selectedRole]);
 
   const handleResumeFile = async (event) => {
     const file = event.target.files?.[0];
@@ -46,6 +49,7 @@ function JobDemo() {
 
     setError('');
     setResumeFile(file);
+    setResumeFileUrl('');
     setFileName(file.name);
 
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -62,8 +66,8 @@ function JobDemo() {
   };
 
   const handleAnalyze = async () => {
-    if (!resumeText.trim() && !resumeFile) {
-      setError('Please add resume text or upload a resume file.');
+    if (!resumeText.trim() && !resumeFile && !resumeFileUrl) {
+      setError('Please add resume text, upload a file, or select a saved resume.');
       return;
     }
 
@@ -75,10 +79,16 @@ function JobDemo() {
       const data = await analyzeJobDemo({
         resumeText,
         resumeFile,
+        resumeFileUrl,
         role: selectedRole,
         jobDescription,
       });
       setResult(data);
+
+      if (data.resumeFileUrl) {
+        setResumeFileUrl(data.resumeFileUrl);
+        setResumeFile(null);
+      }
     } catch (requestError) {
       console.error(requestError);
       setError(
@@ -145,31 +155,66 @@ function JobDemo() {
 
 
           <div className="space-y-5">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-800">
-                Resume file (.pdf, .txt, or .md)
-              </span>
-              <input
-                type="file"
-                accept=".pdf,application/pdf,.txt,.md,.text"
-                onChange={handleResumeFile}
-                className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-blue-50 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
-              />
-              {fileName && <span className="mt-2 block text-xs text-slate-500">{fileName}</span>}
-            </label>
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition ${activeTab === 'upload' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('upload')}
+              >
+                Upload & Paste
+              </button>
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition ${activeTab === 'saved' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('saved')}
+              >
+                Saved Resumes
+              </button>
+            </div>
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-800">
-                Resume text
-              </span>
-              <textarea
-                value={resumeText}
-                onChange={(event) => setResumeText(event.target.value)}
-                rows={9}
-                placeholder="Paste candidate resume text, or upload a PDF/text resume file..."
-                className="w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            {activeTab === 'upload' && (
+              <>
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold text-slate-800">
+                    Resume file (.pdf, .txt, or .md)
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf,.txt,.md,.text"
+                    onChange={handleResumeFile}
+                    className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-blue-50 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {fileName && <span className="mt-2 block text-xs text-slate-500">{fileName}</span>}
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold text-slate-800">
+                    Resume text
+                  </span>
+                  <textarea
+                    value={resumeText}
+                    onChange={(event) => setResumeText(event.target.value)}
+                    rows={9}
+                    placeholder="Paste candidate resume text, or upload a PDF/text resume file..."
+                    className="w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+              </>
+            )}
+
+            {activeTab === 'saved' && (
+              <SavedResumePicker
+                onSelect={(r) => {
+                  setResumeFileUrl(r.url);
+                  setResumeFile(null);
+                  setResumeText('');
+                  setFileName(r.fileName || 'Saved Resume Selected');
+                  alert(`Selected ${r.fileName || 'saved resume'} for analysis.`);
+                }}
+                onDelete={deleteMyResume}
               />
-            </label>
+            )}
+
 
             <label className="block">
               <span className="mb-2 block text-sm font-semibold text-slate-800">Role</span>

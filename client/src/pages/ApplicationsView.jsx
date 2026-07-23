@@ -7,8 +7,8 @@ import { getJobApplications, updateApplicationStatus } from '../services/api.js'
 function ScoreRing({ score }) {
   const color =
     score >= 75 ? '#16a34a' :
-    score >= 45 ? '#d97706' :
-    '#dc2626';
+      score >= 45 ? '#d97706' :
+        '#dc2626';
 
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
@@ -35,10 +35,10 @@ function ScoreRing({ score }) {
 // ─── Status Badge ─────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const styles = {
-    pending:     'bg-slate-100 text-slate-600 border-slate-200',
-    reviewed:    'bg-blue-50 text-blue-700 border-blue-200',
+    pending: 'bg-slate-100 text-slate-600 border-slate-200',
+    reviewed: 'bg-blue-50 text-blue-700 border-blue-200',
     shortlisted: 'bg-green-50 text-green-700 border-green-200',
-    rejected:    'bg-red-50 text-red-600 border-red-200',
+    rejected: 'bg-red-50 text-red-600 border-red-200',
   };
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border capitalize ${styles[status] || styles.pending}`}>
@@ -51,8 +51,8 @@ function StatusBadge({ status }) {
 function ChipList({ title, items = [], tone }) {
   const colors = {
     green: 'bg-green-50 text-green-700 border-green-200',
-    red:   'bg-red-50 text-red-600 border-red-200',
-    blue:  'bg-blue-50 text-blue-700 border-blue-200',
+    red: 'bg-red-50 text-red-600 border-red-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
     slate: 'bg-slate-50 text-slate-600 border-slate-200',
   };
   if (!items.length) return null;
@@ -84,7 +84,7 @@ function SubmittedResume({ application }) {
           {/* Original PDF stored in Cloudinary — primary action for recruiters */}
           {application.resumeFileUrl && (
             <a
-              href={application.resumeFileUrl}
+              href={`https://docs.google.com/viewer?url=${encodeURIComponent(application.resumeFileUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
@@ -360,11 +360,10 @@ export default function ApplicationsView() {
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
-                    className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold border transition ${
-                      filter === f
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                    }`}
+                    className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold border transition ${filter === f
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                      }`}
                   >
                     {f.charAt(0).toUpperCase() + f.slice(1)} ({count})
                   </button>

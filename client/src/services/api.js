@@ -34,6 +34,9 @@ export const analyzeJobDemo = async (payload) => {
     formData.append('resumeText', payload.resumeText || '');
     formData.append('role', payload.role);
     formData.append('jobDescription', payload.jobDescription);
+    if (payload.resumeFileUrl) {
+      formData.append('resumeFileUrl', payload.resumeFileUrl);
+    }
 
     const response = await api.post('/jobdemo/analyze', formData);
     return response.data;

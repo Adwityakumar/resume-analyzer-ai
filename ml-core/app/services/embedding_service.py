@@ -39,7 +39,8 @@ def _get_model():
     try:
         from sentence_transformers import SentenceTransformer
 
-        _model = SentenceTransformer(MODEL_NAME, local_files_only=True)
+        # _model = SentenceTransformer(MODEL_NAME, local_files_only=True)
+        _model = SentenceTransformer(MODEL_NAME)
     except Exception as exc:
         _load_error = str(exc)
         _model = None
