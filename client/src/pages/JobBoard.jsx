@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getAllJobs, analyzeJobApplication, applyForJob } from '../services/api.js';
+import { getAllJobs, analyzeJobApplication, applyForJob, getMyResumes, deleteMyResume } from '../services/api.js';
 
 // ─── Score display after applying ────────────────────────────────────────────
 function ScoreRing({ score }) {
@@ -35,18 +35,117 @@ function SkillChip({ skill, tone = 'indigo' }) {
   const colors = {
     indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
     green:  'bg-green-50 text-green-700 border-green-200',
-    red:    'bg-red-50 text-red-600 border-red-200',
-    blue:   'bg-blue-50 text-blue-700 border-blue-200',
+    red:    'bg-red-50 text-red-600 border-red-2// ─── Saved Resume Picker ───────────────────────────────────────────────────
+function SavedResumePicker({ onSelect, onDelete }) {
+  const [resumes, setResumes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    getMyResumes()
+      .then(setResumes)
+      .catch(() => setResumes([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDelete = async (publicId) => {
+    if (!window.confirm('Remove this resume from your vault?')) return;
+    setDeletingId(publicId);
+    try {
+      await onDelete(publicId);
+      setResumes((prev) => prev.filter((r) => r.publicId !== publicId));
+    } catch {
+      alert('Failed to delete. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="py-8 text-center text-sm text-slate-400 animate-pulse">
+        Loading your saved resumes…
+      </div>
+    );
+  }
+
+  if (resumes.length === 0) {
+    return (
+      <div className="py-10 text-center">
+        <p className="text-3xl mb-2">📂</p>
+        <p className="text-sm text-slate-500">No saved resumes yet.</p>
+        <p className="text-xs text-slate-400 mt-1">Upload a PDF in the other tab and it will appear here for future use.</p>
+      </div>
+    );
+  }
+
   return (
-    <span className={`inline-flex px-2.5 py-1 text-xs rounded-full border font-medium ${colors[tone]}`}>
-      {skill}
-    </span>
+    <div className="space-y-2">
+      <p className="text-xs text-slate-400 mb-3">
+        Select a previously uploaded resume to use for this application.
+      </p>
+      {resumes.map((r) => (
+        <div
+          key={r.publicId}
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 transition group"
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {/* PDF icon */}
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+              <span className="text-red-500 text-sm font-bold">📄</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-700 truncate">{r.fileName || 'resume.pdf'}</p>
+              <p className="text-xs text-slate-400">
+                {new Date(r.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Open PDF in new tab */}
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-indigo-600 font-medium hover:underline"
+            >
+              Preview
+            </a>
+
+            {/* Use this resume */}
+            <button
+              type="button"
+              onClick={() => onSelect(r)}
+              className="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition"
+            >
+              Use
+            </button>
+
+            {/* Delete from vault */}
+            <button
+              type="button"
+              onClick={() => handleDelete(r.publicId)}
+              disabled={deletingId === r.publicId}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500 transition disabled:opacity-40"
+              title="Remove from vault"
+            >
+              {deletingId === r.publicId ? (
+                <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+              ) : '×'}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-// ─── Apply Modal ──────────────────────────────────────────────────────────────
+// ─── Apply Modal ────────────────────────────────────────────────────
 function ApplyModal({ job, onClose, onApplied }) {
+  // Tab state: 'upload' | 'saved'
+  const [activeTab, setActiveTab] = useState('upload');
+
   const [resumeText, setResumeText] = useState('');
   const [resumeFile, setResumeFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -56,6 +155,24 @@ function ApplyModal({ job, onClose, onApplied }) {
   const [result, setResult] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // Cloudinary data returned from the /analyze endpoint; reused on submit
+  // so we don't re-upload the same file a second time.
+  const [cachedResumeFileUrl, setCachedResumeFileUrl] = useState('');
+  const [cachedResumeFileName, setCachedResumeFileName] = useState('');
+  const [cachedCloudinaryPublicId, setCachedCloudinaryPublicId] = useState('');
+
+  const resetForm = () => {
+    setResumeText('');
+    setResumeFile(null);
+    setFileName('');
+    setResult(null);
+    setSubmitted(false);
+    setError('');
+    setCachedResumeFileUrl('');
+    setCachedResumeFileName('');
+    setCachedCloudinaryPublicId('');
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -64,9 +181,48 @@ function ApplyModal({ job, onClose, onApplied }) {
     setResult(null);
     setSubmitted(false);
     setError('');
+    setCachedResumeFileUrl('');
     // For non-PDF files, pre-read text
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       file.text().then(setResumeText).catch(() => {});
+    }
+  };
+
+  // Called when the user picks a resume from their Cloudinary vault.
+  // We populate all fields as if they had uploaded it fresh, then switch
+  // the modal into the result/confirmation view after analyzing.
+  const handleSelectSavedResume = async (savedResume) => {
+    setCachedResumeFileUrl(savedResume.url);
+    setCachedCloudinaryPublicId(savedResume.publicId);
+    setCachedResumeFileName(savedResume.fileName);
+    setFileName(savedResume.fileName);
+    setResumeFile(null);
+    setResumeText('');
+    setError('');
+    setLoading(true);
+    setActiveTab('upload'); // Switch back so the result panel shows
+    try {
+      // Analyze using the already-uploaded Cloudinary URL by passing it as
+      // a text placeholder. The server will use the URL; we just need the ML
+      // score. We send resumeText as empty so the server fetches the text
+      // from the PDF it already has stored.
+      // NOTE: We pass resumeFileUrl in the request body so the server knows
+      // not to re-upload. The analyze endpoint returns the score + analysis.
+      const data = await analyzeJobApplication(job._id, {
+        resumeText: '',          // server will extract from the saved PDF
+        resumeFile: null,
+        resumeFileUrl: savedResume.url,
+        cloudinaryPublicId: savedResume.publicId,
+      });
+      setResult({
+        ...data,
+        resumeFileUrl: savedResume.url,
+        resumeFileName: savedResume.fileName,
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to analyze resume.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -81,6 +237,11 @@ function ApplyModal({ job, onClose, onApplied }) {
     try {
       const data = await analyzeJobApplication(job._id, { resumeText, resumeFile });
       setResult(data);
+      // Cache Cloudinary info returned by the server so we don't re-upload on submit
+      if (data.resumeFileUrl) {
+        setCachedResumeFileUrl(data.resumeFileUrl);
+        setCachedResumeFileName(data.resumeFileName || resumeFile?.name || '');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to analyze resume.');
     } finally {
@@ -89,7 +250,7 @@ function ApplyModal({ job, onClose, onApplied }) {
   };
 
   const handleConfirmSubmit = async () => {
-    if (!resumeText.trim() && !resumeFile) {
+    if (!resumeText.trim() && !resumeFile && !cachedResumeFileUrl) {
       setError('Please upload your resume or paste your resume text.');
       setResult(null);
       return;
@@ -97,7 +258,18 @@ function ApplyModal({ job, onClose, onApplied }) {
     setSubmitting(true);
     setError('');
     try {
-      const data = await applyForJob(job._id, { resumeText, resumeFile });
+      // If the file was already uploaded to Cloudinary during the analyze step,
+      // pass the URL + publicId back so the server skips re-uploading.
+      const payload = {
+        resumeText,
+        resumeFile: cachedResumeFileUrl ? null : resumeFile,
+        ...(cachedResumeFileUrl && {
+          resumeFileUrl: cachedResumeFileUrl,
+          cloudinaryPublicId: cachedCloudinaryPublicId,
+          resumeFileName: cachedResumeFileName,
+        }),
+      };
+      const data = await applyForJob(job._id, payload);
       setResult(data);
       setSubmitted(true);
       onApplied(job._id);
@@ -113,6 +285,7 @@ function ApplyModal({ job, onClose, onApplied }) {
     setResult(null);
     setSubmitted(false);
     setError('');
+    setCachedResumeFileUrl('');
   };
 
   return (
@@ -127,7 +300,7 @@ function ApplyModal({ job, onClose, onApplied }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
 
-        {/* Result Panel — shown after successful apply */}
+        {/* Result Panel — shown after analysis or successful apply */}
         {result ? (
           <div className="p-6 space-y-5">
             {error && (
@@ -146,6 +319,24 @@ function ApplyModal({ job, onClose, onApplied }) {
               <ScoreRing score={result.score} />
               <p className="text-lg font-bold text-slate-800 mt-3">{result.score}% Match</p>
             </div>
+
+            {/* PDF link if resume was stored in Cloudinary */}
+            {(result.resumeFileUrl || cachedResumeFileUrl) && (
+              <div className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2.5">
+                <span className="text-red-500">📄</span>
+                <span className="text-xs text-slate-600 flex-1 truncate">
+                  {result.resumeFileName || cachedResumeFileName || 'resume.pdf'}
+                </span>
+                <a
+                  href={result.resumeFileUrl || cachedResumeFileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-indigo-600 font-semibold hover:underline shrink-0"
+                >
+                  View PDF →
+                </a>
+              </div>
+            )}
 
             {/* AI Summary */}
             {result.summary && (
@@ -201,7 +392,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => setResult(null)}
+                  onClick={() => { setResult(null); setCachedResumeFileUrl(''); }}
                   disabled={submitting}
                   className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition disabled:opacity-50"
                 >
@@ -216,7 +407,7 @@ function ApplyModal({ job, onClose, onApplied }) {
                   {submitting ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Submitting...
+                      Submitting…
                     </span>
                   ) : 'Submit Application'}
                 </button>
@@ -224,11 +415,12 @@ function ApplyModal({ job, onClose, onApplied }) {
             )}
           </div>
         ) : (
-          <form onSubmit={handleAnalyze} className="p-6 space-y-5">
+          <div className="p-6 space-y-5">
             {error && (
               <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-200">{error}</div>
             )}
 
+            {/* Job requirements summary */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3">
               <p className="text-xs font-semibold text-indigo-700 mb-1">Job Requirements</p>
               {job.requiredSkills?.length > 0 && (
@@ -241,58 +433,105 @@ function ApplyModal({ job, onClose, onApplied }) {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Upload Resume <span className="text-slate-400 font-normal">(PDF, TXT, MD)</span>
-              </label>
-              <input
-                type="file"
-                accept=".pdf,application/pdf,.txt,.md,.text"
-                onChange={handleFileChange}
-                className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
-              />
-              {fileName && <p className="mt-1 text-xs text-slate-500">Selected file: {fileName}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                Or paste resume text
-              </label>
-              <textarea
-                value={resumeText}
-                onChange={(e) => handleResumeTextChange(e.target.value)}
-                rows={7}
-                placeholder="Paste the full text of your resume here..."
-                className="w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-1">
+            {/* ─── Tab switcher ─── */}
+            <div className="flex rounded-lg border border-slate-200 overflow-hidden">
               <button
                 type="button"
-                onClick={onClose}
-                className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition"
+                onClick={() => { setActiveTab('upload'); resetForm(); }}
+                className={`flex-1 py-2 text-sm font-semibold transition ${
+                  activeTab === 'upload'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
               >
-                Cancel
+                ↑ Upload New
               </button>
               <button
-                type="submit"
-                disabled={loading || (!resumeText.trim() && !resumeFile)}
-                className="flex-1 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={() => setActiveTab('saved')}
+                className={`flex-1 py-2 text-sm font-semibold transition ${
+                  activeTab === 'saved'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-slate-500 hover:bg-slate-50'
+                }`}
               >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Analyzing...
-                  </span>
-                ) : 'Analyze Resume'}
+                🗂 Saved Resumes
               </button>
             </div>
 
-            <p className="text-xs text-slate-400 text-center">
-              Your resume will be analyzed first. You can submit the application after reviewing the score.
-            </p>
-          </form>
+            {/* ─── Upload tab ─── */}
+            {activeTab === 'upload' && (
+              <form onSubmit={handleAnalyze} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Upload Resume <span className="text-slate-400 font-normal">(PDF, TXT, MD)</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf,.txt,.md,.text"
+                    onChange={handleFileChange}
+                    className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                  {fileName && <p className="mt-1 text-xs text-slate-500">Selected file: {fileName}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Or paste resume text
+                  </label>
+                  <textarea
+                    value={resumeText}
+                    onChange={(e) => handleResumeTextChange(e.target.value)}
+                    rows={7}
+                    placeholder="Paste the full text of your resume here…"
+                    className="w-full resize-y rounded-md border border-slate-300 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || (!resumeText.trim() && !resumeFile)}
+                    className="flex-1 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Analyzing…
+                      </span>
+                    ) : 'Analyze Resume'}
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-400 text-center">
+                  Your resume will be analyzed first. You can submit the application after reviewing the score.
+                </p>
+              </form>
+            )}
+
+            {/* ─── Saved resumes tab ─── */}
+            {activeTab === 'saved' && (
+              <div>
+                {loading ? (
+                  <div className="py-8 text-center">
+                    <span className="w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" />
+                  </div>
+                ) : (
+                  <SavedResumePicker
+                    onSelect={handleSelectSavedResume}
+                    onDelete={deleteMyResume}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -111,4 +111,23 @@ export const getMyApplications = async () => {
   return response.data;
 };
 
+// ─── Resume Vault (Cloudinary) ──────────────────────────────────────────────
+
+/** Fetch all resume PDFs the current job-seeker has saved to Cloudinary. */
+export const getMyResumes = async () => {
+  const response = await api.get('/resumes/my');
+  return response.data;
+};
+
+/**
+ * Delete a specific resume by its Cloudinary public_id.
+ * @param {string} publicId - e.g. "resumes/userId/cv_1234567890"
+ */
+export const deleteMyResume = async (publicId) => {
+  // Encode slashes in the publicId so they don't break the URL path
+  const encoded = encodeURIComponent(publicId);
+  const response = await api.delete(`/resumes/${encoded}`);
+  return response.data;
+};
+
 export default api;

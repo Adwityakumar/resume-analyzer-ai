@@ -80,21 +80,39 @@ function SubmittedResume({ application }) {
           <p className="text-xs text-slate-500">{application.applicantEmail}</p>
         </div>
 
-        {application.resumeFileName && (
-          <span className="rounded-md border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
-            {application.resumeFileName}
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Original PDF stored in Cloudinary — primary action for recruiters */}
+          {application.resumeFileUrl && (
+            <a
+              href={application.resumeFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+            >
+              <span>📄</span> View Resume PDF
+            </a>
+          )}
+
+          {/* Fallback: show original filename badge if no Cloudinary URL */}
+          {!application.resumeFileUrl && application.resumeFileName && (
+            <span className="rounded-md border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+              {application.resumeFileName}
+            </span>
+          )}
+        </div>
       </div>
 
+      {/* Extracted text — shown as a collapsible fallback */}
       {resumeText ? (
         <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
           {resumeText}
         </pre>
       ) : (
-        <p className="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-500">
-          Resume text was not stored for this application.
-        </p>
+        !application.resumeFileUrl && (
+          <p className="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-500">
+            Resume text was not stored for this application.
+          </p>
+        )
       )}
     </div>
   );

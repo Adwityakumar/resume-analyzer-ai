@@ -9,6 +9,19 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'recruiter'], 
     default: 'user' 
   },
+
+  // ─── Cloudinary-stored resume PDFs (job seekers only) ───────────────────────
+  // Each entry is added whenever the user uploads a resume (during apply or
+  // standalone upload). They can reuse any saved resume in future applications.
+  resumes: [
+    {
+      url:        { type: String, required: true }, // Cloudinary secure_url
+      publicId:   { type: String, required: true }, // Used for Cloudinary deletion
+      fileName:   { type: String, default: '' },    // Original file name shown in UI
+      uploadedAt: { type: Date,   default: Date.now },
+    },
+  ],
+
   createdAt: { type: Date, default: Date.now }
 });
 

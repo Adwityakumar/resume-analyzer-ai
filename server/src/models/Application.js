@@ -18,6 +18,10 @@ const applicationSchema = new mongoose.Schema({
   // Resume text stored so recruiter can review & re-analysis is possible
   resumeText: { type: String, default: '' },
   resumeFileName: { type: String, default: '' },
+  // Cloudinary-hosted PDF URL — lets the recruiter open/download the original PDF
+  // directly instead of reading the extracted text blob.
+  // Will be empty string if the user pasted text (no file uploaded).
+  resumeFileUrl: { type: String, default: '' },
 
   // ML Analysis cached at the time of application
   mlScore: { type: Number, default: 0 },
