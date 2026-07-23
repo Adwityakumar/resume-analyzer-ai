@@ -111,7 +111,7 @@ export const getMyApplications = async () => {
   return response.data;
 };
 
-// ─── Resume Vault (Cloudinary) ──────────────────────────────────────────────
+// ─── Resume Vault (Cloudinary) ────────────────────────────────────────────────
 
 /** Fetch all resume PDFs the current job-seeker has saved to Cloudinary. */
 export const getMyResumes = async () => {

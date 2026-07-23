@@ -35,7 +35,20 @@ function SkillChip({ skill, tone = 'indigo' }) {
   const colors = {
     indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
     green:  'bg-green-50 text-green-700 border-green-200',
-    red:    'bg-red-50 text-red-600 border-red-2// ─── Saved Resume Picker ───────────────────────────────────────────────────
+    red:    'bg-red-50 text-red-600 border-red-200',
+    blue:   'bg-blue-50 text-blue-700 border-blue-200',
+  };
+  return (
+    <span className={`inline-flex px-2.5 py-1 text-xs rounded-full border font-medium ${colors[tone]}`}>
+      {skill}
+    </span>
+  );
+}
+
+// ─── Saved Resume Picker ──────────────────────────────────────────────────────
+// Shown inside the Apply Modal when the user switches to the "Saved Resumes" tab.
+// Lists all PDFs the user has previously uploaded to Cloudinary so they can
+// pick one and skip re-uploading.
 function SavedResumePicker({ onSelect, onDelete }) {
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +87,9 @@ function SavedResumePicker({ onSelect, onDelete }) {
       <div className="py-10 text-center">
         <p className="text-3xl mb-2">📂</p>
         <p className="text-sm text-slate-500">No saved resumes yet.</p>
-        <p className="text-xs text-slate-400 mt-1">Upload a PDF in the other tab and it will appear here for future use.</p>
+        <p className="text-xs text-slate-400 mt-1">
+          Upload a PDF in the other tab and it will appear here for future use.
+        </p>
       </div>
     );
   }
@@ -87,17 +102,18 @@ function SavedResumePicker({ onSelect, onDelete }) {
       {resumes.map((r) => (
         <div
           key={r.publicId}
-          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 transition group"
+          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 hover:border-indigo-300 transition"
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {/* PDF icon */}
             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
               <span className="text-red-500 text-sm font-bold">📄</span>
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-700 truncate">{r.fileName || 'resume.pdf'}</p>
               <p className="text-xs text-slate-400">
-                {new Date(r.uploadedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {new Date(r.uploadedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric', month: 'short', year: 'numeric',
+                })}
               </p>
             </div>
           </div>
@@ -113,7 +129,7 @@ function SavedResumePicker({ onSelect, onDelete }) {
               Preview
             </a>
 
-            {/* Use this resume */}
+            {/* Use this resume for the current application */}
             <button
               type="button"
               onClick={() => onSelect(r)}
@@ -122,7 +138,7 @@ function SavedResumePicker({ onSelect, onDelete }) {
               Use
             </button>
 
-            {/* Delete from vault */}
+            {/* Remove from vault */}
             <button
               type="button"
               onClick={() => handleDelete(r.publicId)}
@@ -141,9 +157,9 @@ function SavedResumePicker({ onSelect, onDelete }) {
   );
 }
 
-// ─── Apply Modal ────────────────────────────────────────────────────
+// ─── Apply Modal ──────────────────────────────────────────────────────────────
 function ApplyModal({ job, onClose, onApplied }) {
-  // Tab state: 'upload' | 'saved'
+  // Tab: 'upload' (default) | 'saved'
   const [activeTab, setActiveTab] = useState('upload');
 
   const [resumeText, setResumeText] = useState('');
@@ -155,8 +171,8 @@ function ApplyModal({ job, onClose, onApplied }) {
   const [result, setResult] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // Cloudinary data returned from the /analyze endpoint; reused on submit
-  // so we don't re-upload the same file a second time.
+  // Cloudinary data returned from the /analyze endpoint.
+  // Cached here so the /apply submit can reuse it without re-uploading.
   const [cachedResumeFileUrl, setCachedResumeFileUrl] = useState('');
   const [cachedResumeFileName, setCachedResumeFileName] = useState('');
   const [cachedCloudinaryPublicId, setCachedCloudinaryPublicId] = useState('');
@@ -182,15 +198,15 @@ function ApplyModal({ job, onClose, onApplied }) {
     setSubmitted(false);
     setError('');
     setCachedResumeFileUrl('');
-    // For non-PDF files, pre-read text
+    // For non-PDF files, pre-read text so the textarea shows content
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       file.text().then(setResumeText).catch(() => {});
     }
   };
 
-  // Called when the user picks a resume from their Cloudinary vault.
-  // We populate all fields as if they had uploaded it fresh, then switch
-  // the modal into the result/confirmation view after analyzing.
+  // Called when user picks a resume from their Cloudinary vault.
+  // Runs the ML analysis using the already-stored URL and then shows
+  // the result panel just like a normal upload flow.
   const handleSelectSavedResume = async (savedResume) => {
     setCachedResumeFileUrl(savedResume.url);
     setCachedCloudinaryPublicId(savedResume.publicId);
@@ -200,16 +216,10 @@ function ApplyModal({ job, onClose, onApplied }) {
     setResumeText('');
     setError('');
     setLoading(true);
-    setActiveTab('upload'); // Switch back so the result panel shows
+    setActiveTab('upload'); // switch so result panel becomes visible
     try {
-      // Analyze using the already-uploaded Cloudinary URL by passing it as
-      // a text placeholder. The server will use the URL; we just need the ML
-      // score. We send resumeText as empty so the server fetches the text
-      // from the PDF it already has stored.
-      // NOTE: We pass resumeFileUrl in the request body so the server knows
-      // not to re-upload. The analyze endpoint returns the score + analysis.
       const data = await analyzeJobApplication(job._id, {
-        resumeText: '',          // server will extract from the saved PDF
+        resumeText: '',
         resumeFile: null,
         resumeFileUrl: savedResume.url,
         cloudinaryPublicId: savedResume.publicId,
@@ -237,7 +247,7 @@ function ApplyModal({ job, onClose, onApplied }) {
     try {
       const data = await analyzeJobApplication(job._id, { resumeText, resumeFile });
       setResult(data);
-      // Cache Cloudinary info returned by the server so we don't re-upload on submit
+      // Cache the Cloudinary URL returned by the server so we don't re-upload on submit
       if (data.resumeFileUrl) {
         setCachedResumeFileUrl(data.resumeFileUrl);
         setCachedResumeFileName(data.resumeFileName || resumeFile?.name || '');
@@ -258,7 +268,7 @@ function ApplyModal({ job, onClose, onApplied }) {
     setSubmitting(true);
     setError('');
     try {
-      // If the file was already uploaded to Cloudinary during the analyze step,
+      // If the PDF was already uploaded to Cloudinary during the analyze step,
       // pass the URL + publicId back so the server skips re-uploading.
       const payload = {
         resumeText,
@@ -291,7 +301,8 @@ function ApplyModal({ job, onClose, onApplied }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Apply for Job</h2>
@@ -300,7 +311,7 @@ function ApplyModal({ job, onClose, onApplied }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
 
-        {/* Result Panel — shown after analysis or successful apply */}
+        {/* ── Result Panel — shown after analysis or successful submit ── */}
         {result ? (
           <div className="p-6 space-y-5">
             {error && (
@@ -414,7 +425,9 @@ function ApplyModal({ job, onClose, onApplied }) {
               </div>
             )}
           </div>
+
         ) : (
+          /* ── Input Panel ── */
           <div className="p-6 space-y-5">
             {error && (
               <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg border border-red-200">{error}</div>
@@ -433,7 +446,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               )}
             </div>
 
-            {/* ─── Tab switcher ─── */}
+            {/* ── Tab switcher: Upload New | Saved Resumes ── */}
             <div className="flex rounded-lg border border-slate-200 overflow-hidden">
               <button
                 type="button"
@@ -459,7 +472,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               </button>
             </div>
 
-            {/* ─── Upload tab ─── */}
+            {/* ── Upload tab ── */}
             {activeTab === 'upload' && (
               <form onSubmit={handleAnalyze} className="space-y-5">
                 <div>
@@ -516,7 +529,7 @@ function ApplyModal({ job, onClose, onApplied }) {
               </form>
             )}
 
-            {/* ─── Saved resumes tab ─── */}
+            {/* ── Saved resumes tab ── */}
             {activeTab === 'saved' && (
               <div>
                 {loading ? (
@@ -775,7 +788,7 @@ export default function JobBoard() {
           </div>
         )}
 
-        {/* Loading */}
+        {/* Loading skeleton */}
         {loading && (
           <div className="grid gap-4">
             {[1, 2, 3].map(i => (
