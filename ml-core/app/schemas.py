@@ -25,3 +25,5 @@ class JobMatchResponse(BaseModel):
     extractedSkills: list[str] = Field(default_factory=list)
     semanticMatches: list[dict] = Field(default_factory=list)
     scoreBreakdown: dict[str, float | str] = Field(default_factory=dict)
+    usedJobDescription: bool = False
+    evaluatedSkills: dict[str, list[str]] = Field(default_factory=dict)

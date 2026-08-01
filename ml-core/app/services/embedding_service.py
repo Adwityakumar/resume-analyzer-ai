@@ -1,5 +1,7 @@
 import os
 
+import numpy as np
+
 
 MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
 _model = None
@@ -23,7 +25,10 @@ def max_embedding_similarity(source_text: str, target_text: str, chunks: list[st
     target_embedding = embeddings[-1]
     source_embeddings = embeddings[:-1]
 
-    return max(_dot_product(source_embedding, target_embedding) for source_embedding in source_embeddings)
+    # normalize_embeddings=True guarantees unit vectors, so dot product == cosine similarity.
+    # NumPy's vectorised dot is ~100x faster than a pure-Python zip loop.
+    similarities = np.dot(source_embeddings, target_embedding)
+    return float(similarities.max())
 
 
 def get_embedding_load_error() -> str | None:
@@ -48,5 +53,3 @@ def _get_model():
     return _model
 
 
-def _dot_product(left, right) -> float:
-    return float(sum(float(a) * float(b) for a, b in zip(left, right)))

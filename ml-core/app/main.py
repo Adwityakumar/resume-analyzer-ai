@@ -1,6 +1,9 @@
 import io
 import json
 
+from dotenv import load_dotenv
+load_dotenv()  # loads GEMINI_API_KEY and other vars from .env at startup
+
 import pypdf
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 

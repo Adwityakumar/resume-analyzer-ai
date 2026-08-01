@@ -2,6 +2,7 @@
   "venvPath": "ml-core",
   "venv": "venv",
   "extraPaths": [
-    "ml-core/venv/Lib/site-packages"
+    "ml-core/venv/Lib/site-packages",
+    "ml-core"
   ]
 }

@@ -10,6 +10,9 @@ const roles = [
   { value: 'backend_developer', label: 'Backend Developer' },
   { value: 'data_analyst', label: 'Data Analyst' },
   { value: 'ui_ux_designer', label: 'UI/UX Designer' },
+  { value: 'devops_engineer', label: 'DevOps Engineer' },
+  { value: 'mobile_developer', label: 'Mobile Developer' },
+  { value: 'product_manager', label: 'Product Manager' },
 ];
 
 function JobDemo() {
@@ -277,8 +280,38 @@ function JobDemo() {
               <div className="rounded-lg bg-slate-950 p-5 text-white">
                 <p className="text-sm text-slate-300">{result.role}</p>
                 <p className="mt-2 text-5xl font-bold">{result.score}%</p>
-                <p className="mt-3 text-sm text-slate-300">{result.summary}</p>
+                <div className="mt-4 border-t border-slate-800 pt-3">
+                  <span className="mb-1 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                    ✨ AI Summary
+                  </span>
+                  <p className="text-sm text-slate-300 leading-relaxed">{result.summary}</p>
+                </div>
               </div>
+
+              {result.usedJobDescription ? (
+                <div className="rounded-md border border-indigo-200 bg-indigo-50 p-4">
+                  <p className="mb-3 text-sm font-semibold text-indigo-900">
+                    ✨ Skills Extracted from Job Description
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {result.evaluatedSkills?.requiredSkills?.map((s) => (
+                      <span key={s} className="rounded border border-indigo-200 bg-white px-2 py-1 text-xs font-medium text-indigo-800">
+                        {s} <span className="opacity-50">(Req)</span>
+                      </span>
+                    ))}
+                    {result.evaluatedSkills?.goodToHave?.map((s) => (
+                      <span key={s} className="rounded border border-indigo-200 bg-white px-2 py-1 text-xs font-medium text-indigo-800">
+                        {s} <span className="opacity-50">(Bonus)</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs italic text-slate-500">
+                  Evaluated against predefined {result.role} skills. Add a Job Description to extract skills dynamically!
+                </p>
+              )}
+
 
               <ResultList title="Matched Skills" items={result.matchedSkills} tone="green" />
               <ResultList title="Missing Skills" items={result.missingSkills} tone="red" />

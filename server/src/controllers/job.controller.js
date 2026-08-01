@@ -26,6 +26,8 @@ const buildJobMatchResponse = (mlResult, message) => ({
     suggestions: mlResult.suggestions,
     role: mlResult.role,
     extractedResumeText: mlResult.extractedResumeText || '',
+    usedJobDescription: mlResult.usedJobDescription,
+    evaluatedSkills: mlResult.evaluatedSkills,
 });
 
 // ─── RECRUITER: Create a new job posting ───────────────────────────────────
@@ -326,6 +328,8 @@ export const applyForJob = async (req, res) => {
                 missingSkills: mlResult.missingSkills,
                 suggestions: mlResult.suggestions,
                 summary: mlResult.summary,
+                usedJobDescription: mlResult.usedJobDescription,
+                evaluatedSkills: mlResult.evaluatedSkills,
             },
         });
 

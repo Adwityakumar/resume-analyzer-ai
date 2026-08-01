@@ -28,6 +28,11 @@ const applicationSchema = new mongoose.Schema({
         missingSkills: { type: [String], default: [] },
         suggestions: { type: [String], default: [] },
         summary: { type: String, default: '' },
+        usedJobDescription: { type: Boolean, default: false },
+        evaluatedSkills: {
+            requiredSkills: { type: [String], default: [] },
+            goodToHave: { type: [String], default: [] },
+        },
     },
 
     // Recruiter workflow status

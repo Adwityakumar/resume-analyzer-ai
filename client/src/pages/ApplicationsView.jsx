@@ -193,6 +193,35 @@ function ApplicantCard({ application, rank, onStatusChange }) {
         <div className="border-t border-slate-100 bg-slate-50 px-5 py-5 space-y-4">
           <SubmittedResume application={application} />
 
+          {/* Dynamic JD Skills */}
+          {application.mlAnalysis?.usedJobDescription && (
+            <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-4 py-3">
+              <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 flex items-center gap-1">
+                <span>✨</span> Skills Extracted from Job Description
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 mb-1">Required Skills</p>
+                  <div className="flex flex-wrap gap-1">
+                    {application.mlAnalysis.evaluatedSkills?.requiredSkills?.map((s) => (
+                      <span key={s} className="px-2 py-0.5 bg-white border border-indigo-200 rounded text-xs font-medium text-indigo-800">{s}</span>
+                    ))}
+                  </div>
+                </div>
+                {application.mlAnalysis.evaluatedSkills?.goodToHave?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 mb-1">Good to Have</p>
+                    <div className="flex flex-wrap gap-1">
+                      {application.mlAnalysis.evaluatedSkills.goodToHave.map((s) => (
+                        <span key={s} className="px-2 py-0.5 bg-white border border-indigo-200 rounded text-xs font-medium text-indigo-800">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Summary */}
           <div className="bg-slate-900 rounded-lg px-4 py-3 text-white">
             <p className="text-xs text-slate-400 mb-1 uppercase tracking-wide">AI Summary</p>

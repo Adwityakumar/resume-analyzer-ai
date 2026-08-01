@@ -12,22 +12,27 @@ export const analyzeJobDemo = async (req, res) => {
     let outResumeFileUrl = resumeFileUrl || '';
     let outCloudinaryPublicId = '';
 
+    // If a saved resume URL was provided (not a fresh upload), download its bytes
+    // so the ML service can extract text from the PDF buffer.
     if (!resolvedResumeFile && resumeFileUrl) {
       try {
-        const fileRes = await axios.get(resumeFileUrl, { 
+        const fileRes = await axios.get(resumeFileUrl, {
           responseType: 'arraybuffer',
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
         });
         resolvedResumeFile = {
           originalname: 'saved-resume.pdf',
           mimetype: 'application/pdf',
-          buffer: fileRes.data,
+          buffer: Buffer.from(fileRes.data),
         };
       } catch (err) {
         console.error('Failed to download saved resume:', err.message);
         return res.status(400).json({ error: 'Could not access the saved resume PDF.' });
       }
-      // It's a brand new upload, save it to Cloudinary and the user's vault
+    }
+
+    // If a brand-new file was uploaded, save it to Cloudinary and the user's vault.
+    if (req.file && !outResumeFileUrl) {
       try {
         const uploadResult = await uploadResume(req.file.buffer, req.file.originalname, req.user._id);
         outResumeFileUrl = uploadResult.url;
@@ -44,7 +49,7 @@ export const analyzeJobDemo = async (req, res) => {
         }
       } catch (err) {
         console.error('Failed to upload and save resume to vault:', err.message);
-        // We do not fail the analysis if saving to the vault fails.
+        // Non-fatal: we do not fail the analysis if saving to the vault fails.
       }
     }
 
